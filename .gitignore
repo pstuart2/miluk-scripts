@@ -1,3 +1,4 @@
 /resources/SPINS-*.json
 /resources/slips/
 /venv/
+/resources/output/
