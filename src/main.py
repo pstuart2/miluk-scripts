@@ -18,11 +18,21 @@ TOP_RIGHT = 1
 BOTTOM_RIGHT = 2
 BOTTOM_LEFT = 3
 
-FILE_SKIP = 10
-FILE_LIMIT = 5
+FILE_SKIP = 63
+FILE_LIMIT = 500
 
 NEW_LINE_THRESHOLD = 20
 SLANT_THRESHOLD = 5
+
+file_cut_number = 0
+last_cut_point = 0
+slip = ''
+
+
+# 1.13.1, 1.13.3, 1.17.3, 1.18.5, 1.19.1
+
+# Maybe angle cuts
+# 1.19.1
 
 
 def setup():
@@ -32,6 +42,7 @@ def setup():
 
 def run():
     print('Run')
+    global file_cut_number, last_cut_point, slip
 
     count = 0
 
@@ -45,13 +56,19 @@ def run():
             break
 
         print(f'{count} {slip}')
+        file_cut_number = 0
+        last_cut_point = 0
         source_img = Image.open(slip)
+
+        if slip.stem == 'Slip1.13.1 - xget':
+            cut_image(source_img, source_img.height)
+            continue
 
         detect_text(slip, source_img)
 
-        datetime_object = datetime.datetime.now()
-        file = slip.stem + '_' + datetime_object.strftime("%Y-%m-%d%H_%M_%S") + slip.suffix
-        source_img.save(output / file, "PNG")
+        # datetime_object = datetime.datetime.now()
+        # file = slip.stem + '_' + datetime_object.strftime("%Y-%m-%d%H_%M_%S") + slip.suffix
+        # source_img.save(output / file, "PNG")
         del source_img
 
 
@@ -81,12 +98,15 @@ def detect_text(path, source_img):
                 if has_negative(paragraph.bounding_box.vertices):
                     continue
 
-                write_block_box(source_img, paragraph.bounding_box.vertices, '#ff9999', 4)
+                # write_block_box(source_img, paragraph.bounding_box.vertices, '#ff9999', 4)
 
                 for word in paragraph.words:
-                    write_block_box(source_img, word.bounding_box.vertices, '#9999ff')
+                    # write_block_box(source_img, word.bounding_box.vertices, '#9999ff')
                     last_top, last_bottom = check_and_break(source_img, word.bounding_box.vertices, last_top,
                                                             last_bottom)
+
+    # Final cut point
+    cut_image(source_img, source_img.height)
 
 
 def write_block_box(source_image, vertices, fill, width=1):
@@ -111,6 +131,8 @@ def write_block_box(source_image, vertices, fill, width=1):
 
 
 def check_and_break(source_image, vertices, last_top, last_bottom):
+    global last_cut_point
+
     current_top = get_most_top(vertices)
     current_bottom = get_most_bottom(vertices)
 
@@ -135,11 +157,14 @@ def check_and_break(source_image, vertices, last_top, last_bottom):
         print(f'current_top - last_bottom = {cl}')
         cl2 = cl / 2
         print(f'cl / 2 = {cl2}')
-        mid = cl2 + last_bottom
-        if mid < last_bottom:
-            mid = last_bottom
+        cut_point = cl2 + last_bottom
+        if cut_point < last_bottom:
+            cut_point = last_bottom
 
-        draw_line(source_image, (0, mid, source_image.width, mid), fill='#239B56')
+        # draw_line(source_image, (0, cut_point, source_image.width, cut_point), fill='#239B56')
+        cut_image(source_image, cut_point)
+        last_cut_point = cut_point
+
         last_top = current_top
         last_bottom = current_bottom
     else:
@@ -175,6 +200,22 @@ def draw_line(source_image, line, fill, width=1):
     draw.line(line, fill=fill, width=width)
 
     del draw
+
+
+def cut_image(source_image, cut_point):
+    global file_cut_number, last_cut_point, slip
+
+    if cut_point <= last_cut_point:
+        return
+
+    file_cut_number = file_cut_number + 1
+    width = source_image.width
+
+    print(f'>>> cut: {file_cut_number} [0, {last_cut_point}, {width}, {cut_point}]')
+
+    file = slip.stem + '_' + str(file_cut_number) + slip.suffix
+    image = source_image.crop((0, last_cut_point, width, cut_point))
+    image.save(output / file, "PNG")
 
 
 def get_slant(vertices):
